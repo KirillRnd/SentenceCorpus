@@ -174,7 +174,7 @@ data_4=list()
 #   'cont':np.array([0,0,0,1,0]),
 #    'base':np.array([0,0,0,0,1]),
 #}
-F=createVecFromStringDefault(ww,size_t=100)
+
 #for row in data_3:
 #    label=row[0]
 #    para=row[1]
@@ -210,95 +210,44 @@ print("Данные готовы")
 def NewF(string):
     return createVecFromString(string,ww,size_t=100)
 
-class DataGenerator(keras.utils.Sequence):
-    'Generates data for Keras'
-    def __init__(self, list_IDs, labels, X_func, batch_size=32, dim=(32,32,32), n_channels=1,
-                 n_classes=5, shuffle=True):
-        'Initialization'
-        self.dim = dim
-        self.batch_size = batch_size
-        self.labels = labels
-        self.list_IDs = list_IDs
-        self.n_channels = n_channels
-        self.n_classes = n_classes
-        self.shuffle = shuffle
-        self.X_func = X_func
-        self.on_epoch_end()
-
-    def __len__(self):
-        'Denotes the number of batches per epoch'
-        return int(np.floor(len(self.list_IDs) / self.batch_size))
-
-    def __getitem__(self, index):
-        'Generate one batch of data'
-        # Generate indexes of the batch
-        indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
-
-        # Find list of IDs
-        list_IDs_temp = [self.list_IDs[k] for k in indexes]
-
-        # Generate data
-        X, y = self.__data_generation(list_IDs_temp)
-
-        return X, y
-
-    def on_epoch_end(self):
-        'Updates indexes after each epoch'
-        self.indexes = np.arange(len(self.list_IDs))
-        if self.shuffle == True:
-            np.random.shuffle(self.indexes)
-
-    def __data_generation(self, list_IDs_temp):
-        'Generates data containing batch_size samples' # X : (n_samples, *dim, n_channels)
-        # Initialization
-        X = np.empty((self.batch_size, *self.dim, self.n_channels))
-        y = np.empty((self.batch_size), dtype=int)
-
-        # Generate data
-        for i, ID in enumerate(list_IDs_temp):
-            # Store sample
-            X[i,] = self.X_func(X_train[ID]).reshape(self.dim)#применяем вышесозданную ф-ю
-
-            # Store class
-            y[i] = self.labels[ID]
-
-        return X, keras.utils.to_categorical(y, num_classes=self.n_classes)
-
-
 # In[97]:
 
 
-params = {'dim': (100,4,1),
-          'batch_size': 64,
-          'n_classes': 5,
-          'n_channels': 1,
-          'shuffle': True,
-          'X_func': NewF
-         }
 
+classes={
+    'misc':np.array([1,0,0,0,0]),
+    'aimx':np.array([0,1,0,0,0]),
+    'ownx':np.array([0,0,1,0,0]),
+    'cont':np.array([0,0,0,1,0]),
+    'base':np.array([0,0,0,0,1]),
+}
+sizeOfSet=10
+IDs_train=list(np.random.randint(len(X_train),size=sizeOfSet))
+data_4_X=np.zeros((sizeOfSet,100,4))
+data_4_y=np.zeros((sizeOfSet,1,5))
+y_train=list(y_train)
+X_train=list(X_train)
+F=createVecFromStringDefault(ww,size_t=100)
+i=0
+for Id in IDs_train:
+    label=X_train[Id]
+    para=y_train[Id]
+    data_4_X[i]=F(para)
+    data_4_y[i]=classes.get(label).reshape(1,5)
+    i=i+1
 
-IDs_train=np.random.randint(len(X_train),size=1000)
-IDs_test=np.random.randint(len(X_test),size=1000)
+# In[98]:
+def create_baseline_dense():
+    model = Sequential()
+    #model.add(LSTM(52,input_shape=(50,32), return_sequences=True))
+    model.add(Dense(50, activation='sigmoid',input_shape=(100,4)))
+    model.add(Dense(50, activation='sigmoid'))
+    model.add(Dense(5, activation='softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    return model
 
-
-
-training_generator = DataGenerator(IDs_train, y_train, **params)
-validation_generator  = DataGenerator(IDs_test, y_test, **params)
-
-
-
-
-model = Sequential()
-model.add(Dense(40, input_shape=(100,4,1), activation='sigmoid'))
-model.add(Dense(40, activation='sigmoid'))
-model.add(Dense(5, activation='softmax'))
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-
+dense_m=create_baseline_dense()
 print("Запуск модели")
+dense_m.fit(data_4_X, data_4_y, epochs=2, batch_size=5)
 
-model.fit_generator(generator=training_generator,
-                    validation_data=validation_generator,
-                    use_multiprocessing=False,
-                    workers=1)
-
-model.save('mod.hdf5')
+dense_m.save('mod.hdf5')
