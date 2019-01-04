@@ -93,7 +93,7 @@ class WordList:
     def GetRndVec(self,words,create=False,ret=True):#словарь строится за n!/k! операций, где n - кол-во слов. Переделать
         def GetOne(word,create=False,ret=True):
             d=self.FindClosest(word)
-            p=np.exp(-d.get('dist')/5)
+            p=np.exp(-d.get('dist'))
             #print(p)
             q=1-p
             v=self.RndVec()*q+self.FindVec(word)*p
@@ -158,7 +158,7 @@ def createVecFromString(string,dictionary,size_t=30):
         print('Wrong size_t. Increase it')
     
     arr_start=np.random.randint(np.abs(len(arr_tmp)-len(arr)))
-    print(len(arr_tmp))
+    #print(len(arr_tmp))
     arr[arr_start:arr_start+len(arr_tmp)]=arr_tmp
     return arr
 def createVecFromStringDefault(dictionary,size_t=30):
@@ -206,25 +206,21 @@ print("Данные готовы")
 
 
 
-# In[95]:
-def NewF(string):
-    return createVecFromString(string,ww,size_t=100)
-
 # In[97]:
 
 
 
 classes={
-    'misc':np.array([1,0,0,0,0]),
-    'aimx':np.array([0,1,0,0,0]),
-    'ownx':np.array([0,0,1,0,0]),
-    'cont':np.array([0,0,0,1,0]),
-    'base':np.array([0,0,0,0,1]),
+    'misc':[1., 0., 0., 0., 0.],
+    'aimx':[0., 1., 0., 0., 0.],
+    'ownx':[0., 0., 1., 0., 0.],
+    'cont':[0., 0., 0., 1., 0.],
+    'base':[0., 0., 0., 0., 1.],
 }
-sizeOfSet=10
+sizeOfSet=5000
 IDs_train=list(np.random.randint(len(X_train),size=sizeOfSet))
 data_4_X=np.zeros((sizeOfSet,100,4))
-data_4_y=np.zeros((sizeOfSet,1,5))
+data_4_y=np.zeros((sizeOfSet,5))
 y_train=list(y_train)
 X_train=list(X_train)
 F=createVecFromStringDefault(ww,size_t=100)
@@ -233,21 +229,60 @@ for Id in IDs_train:
     label=X_train[Id]
     para=y_train[Id]
     data_4_X[i]=F(para)
-    data_4_y[i]=classes.get(label).reshape(1,5)
+    data_4_y[i]=classes.get(label)
+    print(i)
     i=i+1
-
+    
+#data_4_y_cat=keras.utils.to_categorical(data_4_y, num_classes=5)
 # In[98]:
+sizeOfSet_test=2000
+IDs_test=list(np.random.randint(len(X_test),size=sizeOfSet_test))
+data_4_X_t=np.zeros((sizeOfSet_test,100,4))
+data_4_y_t=np.zeros((sizeOfSet_test,5))
+y_test=list(y_test)
+X_test=list(X_test)
+F=createVecFromStringDefault(ww,size_t=100)
+i=0
+for Id in IDs_test:
+    label=X_test[Id]
+    para=y_test[Id]
+    data_4_X_t[i]=F(para)
+    data_4_y_t[i]=classes.get(label)
+    print(i)
+    i=i+1
+    
+# In[98]
+def as_keras_metric(method):
+    import functools
+    from keras import backend as K
+    import tensorflow as tf
+    @functools.wraps(method)
+    def wrapper(self, args, **kwargs):
+        """ Wrapper for turning tensorflow metrics into keras metrics """
+        value, update_op = method(self, args, **kwargs)
+        K.get_session().run(tf.local_variables_initializer())
+        with tf.control_dependencies([update_op]):
+            value = tf.identity(value)
+        return value
+    return wrapper
+# In[98]
+from keras.layers import Dropout, Flatten
+
+from keras.optimizers import SGD
+auc_roc = as_keras_metric(tf.metrics.auc)
+sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
 def create_baseline_dense():
     model = Sequential()
     #model.add(LSTM(52,input_shape=(50,32), return_sequences=True))
-    model.add(Dense(50, activation='sigmoid',input_shape=(100,4)))
-    model.add(Dense(50, activation='sigmoid'))
+    model.add(Dense(10, activation='sigmoid'))
+    model.add(Flatten())
+    model.add(Dense(10, activation='sigmoid'))    
     model.add(Dense(5, activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    model.compile(loss='categorical_crossentropy', optimizer=sgd, metrics=['acc',auc_roc])
     return model
 
 dense_m=create_baseline_dense()
 print("Запуск модели")
-dense_m.fit(data_4_X, data_4_y, epochs=2, batch_size=5)
+dense_m.fit(data_4_X, data_4_y,validation_data=(data_4_X_t, data_4_y_t), epochs=10, batch_size=32)
 
-dense_m.save('mod.hdf5')
+dense_m.save('modval.hdf5')
