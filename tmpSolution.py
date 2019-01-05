@@ -89,15 +89,16 @@ class WordList:
         r = np.random.normal
         s=1
         d=4
-        inv_d = 1.0 / d
-        gauss=r(0,s,size=4)
-        length = np.linalg.norm(gauss)
-        if length == 0.0:
-            v = gauss
-        else:
-            r = np.random.rand() ** inv_d
-            v = np.multiply(gauss, r / length)
-        return v
+        #inv_d = 1.0 / d
+        gauss=r(0,s,size=d)
+        #length = np.linalg.norm(gauss)
+        #if length == 0.0:
+        #    v = gauss
+        #else:
+        #    r = np.random.rand() ** inv_d
+        #    v = np.multiply(gauss, r / length)
+        return gauss
+        #return v
     def GetRndVec(self,words,create=False,ret=True):#словарь строится за n!/k! операций, где n - кол-во слов. Переделать
         def GetOne(word,create=False,ret=True):
             d=self.FindClosest(word)
@@ -225,9 +226,9 @@ classes={
     'cont':3,
     'base':4,
 }
-sizeOfSet=500
+sizeOfSet=5000
 IDs_train=list(np.random.randint(len(X_train),size=sizeOfSet))
-data_4_X=np.zeros((sizeOfSet,100,4))
+data_4_X=np.zeros((sizeOfSet,4,100))
 data_4_y=np.zeros((sizeOfSet))
 y_train=list(y_train)
 X_train=list(X_train)
@@ -236,16 +237,16 @@ i=0
 for Id in IDs_train:
     label=y_train[Id]
     para=X_train[Id]
-    data_4_X[i]=F(para)
+    data_4_X[i]=F(para).T
     data_4_y[i]=classes.get(label)
     print(i)
     i=i+1
     
 data_4_y_cat=keras.utils.to_categorical(data_4_y, num_classes=5)
 # In[98]:
-sizeOfSet_test=200
+sizeOfSet_test=2000
 IDs_test=list(np.random.randint(len(X_test),size=sizeOfSet_test))
-data_4_X_t=np.zeros((sizeOfSet_test,100,4))
+data_4_X_t=np.zeros((sizeOfSet_test,4,100))
 data_4_y_t=np.zeros((sizeOfSet_test))
 y_test=list(y_test)
 X_test=list(X_test)
@@ -254,7 +255,7 @@ i=0
 for Id in IDs_test:
     label=y_test[Id]
     para=X_test[Id]
-    data_4_X_t[i]=F(para)
+    data_4_X_t[i]=F(para).T
     data_4_y_t[i]=classes.get(label)
     print(i)
     i=i+1
@@ -263,6 +264,7 @@ data_4_y_t_cat=keras.utils.to_categorical(data_4_y_t, num_classes=5)
 import functools
 from keras import backend as K
 import tensorflow as tf
+
 def as_keras_metric(method):
     
     @functools.wraps(method)
@@ -301,29 +303,37 @@ my_class_weights = class_weight.compute_class_weight('balanced',
                                                  np.unique(y_train),
                                                  y_train) 
 w_matrix=create_w_matrix(my_class_weights)          
-print(w_matrix)                              
+print(w_matrix)      
+                        
 #w_matrix=np.array([[1, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
 #        ])       
-ncce = partial(w_categorical_crossentropy, weights=w_matrix)
+ncce = partial(w_categorical_crossentropy, weights=w_matrix)#верная строка, не транспонировать
 auc_roc = as_keras_metric(tf.metrics.auc)
 sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+L2 = 1e-4
 def create_baseline_dense():
     model = Sequential()
     #model.add(LSTM(52,input_shape=(50,32), return_sequences=True))
-    model.add(Dense(10, activation='sigmoid'))
+    model.add(Dense(50, activation='sigmoid',
+                kernel_regularizer=regularizers.l2(L2),
+                activity_regularizer=regularizers.l1(L2)))
     model.add(Flatten())
-    model.add(Dense(10, activation='sigmoid'))    
-    model.add(Dense(5, activation='softmax'))
-    model.compile(loss=ncce, optimizer=sgd, metrics=['acc',auc_roc])
+    model.add(Dense(50, activation='sigmoid',
+                kernel_regularizer=regularizers.l2(L2),
+                activity_regularizer=regularizers.l1(L2))) 
+    model.add(Dense(5, activation='softmax',
+                kernel_regularizer=regularizers.l2(L2),
+                activity_regularizer=regularizers.l1(L2)))
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc',auc_roc])
     return model
 
 dense_m=create_baseline_dense()
 print("Запуск модели")
-dense_m.fit(data_4_X, data_4_y_cat,validation_data=(data_4_X_t, data_4_y_t_cat), epochs=10, batch_size=32)
+dense_m.fit(data_4_X, data_4_y_cat,validation_data=(data_4_X_t, data_4_y_t_cat), epochs=500, batch_size=64)
 
 from sklearn.metrics import confusion_matrix
 y_v=dense_m.predict_classes(data_4_X_t)
