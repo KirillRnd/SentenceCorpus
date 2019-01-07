@@ -37,16 +37,19 @@ def create_baseline_dense():
     model.add(Bidirectional(LSTM(
             50, kernel_regularizer=regularizers.l2(L2),
             recurrent_regularizer=regularizers.l2(L2),
-            bias_regularizer=regularizers.l2(L2),
-            activation='sigmoid', return_sequences=True)))
+            bias_regularizer=regularizers.l2(L2), dropout=DROPOUT,
+            recurrent_dropout=RDROPOUT,
+            activation='tanh', return_sequences=True)))
     model.add(Bidirectional(LSTM(
             50, kernel_regularizer=regularizers.l2(L2),
             recurrent_regularizer=regularizers.l2(L2),
-            bias_regularizer=regularizers.l2(L2),
+            bias_regularizer=regularizers.l2(L2), dropout=DROPOUT,
+            recurrent_dropout=RDROPOUT,
             return_sequences=True)))
     model.add(Bidirectional(LSTM(
             50, kernel_regularizer=regularizers.l2(L2),
-            recurrent_regularizer=regularizers.l2(L2),
+            recurrent_regularizer=regularizers.l2(L2), dropout=DROPOUT,
+            recurrent_dropout=RDROPOUT,
             return_sequences=True)))
     model.add(Flatten())
     model.add(Dense(5, activation='softmax',
