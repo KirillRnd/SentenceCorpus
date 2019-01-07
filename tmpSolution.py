@@ -12,6 +12,7 @@ import keras
 from keras.models import Sequential
 from keras.layers import Dense
 from keras import regularizers
+import pickle
 
 directory = './SentenceCorpus/labeled_articles' 
 files = os.listdir(directory) 
@@ -49,7 +50,13 @@ def getwords(wordlist):
         lines[counter]=value.replace('\n','').lower()
     return lines
 
+def save_obj(obj, name ):
+    with open('obj/'+ name + '.pkl', 'wb') as f:
+        pickle.dump(obj, f, pickle.HIGHEST_PROTOCOL)
 
+def load_obj(name ):
+    with open('obj/' + name + '.pkl', 'rb') as f:
+        return pickle.load(f)
 
 s = np.random.seed(42)
 #Мой самописный класс для создания словаря с 4-векторами для каждого слова.
@@ -155,6 +162,9 @@ data_str[1][2]
 for row in data_str[1]:
     ww.GetRndVec(row.split(' '),create=True,ret=False)
 print("Словарь заполнен")
+save_obj(ww.dict,'wordlist')
+
+
 
 def createVecFromString(string,dictionary,size_t=30):
     arr=np.zeros(shape=(size_t,4))
@@ -175,7 +185,7 @@ def createVecFromStringDefault(dictionary,size_t=30):
         return createVecFromString(string,dictionary,size_t)
     return TmpFunc
 
-data_4=list()
+#data_4=list()
 #classes={
 #    'misc':np.array([1,0,0,0,0]),
 #    'aimx':np.array([0,1,0,0,0]),
@@ -261,9 +271,7 @@ for Id in IDs_test:
     i=i+1
 data_4_y_t_cat=keras.utils.to_categorical(data_4_y_t, num_classes=5)    
 # In[98]
-import functools
-from keras import backend as K
-import tensorflow as tf
+
 
 def as_keras_metric(method):
     
@@ -294,7 +302,7 @@ def create_w_matrix(weights):
             arr[i,j]=weights[i]/weights[j]
     return arr
 # In[98]
-from keras.layers import Dropout, Flatten
+from keras.layers import Dropout, Flatten, Bidirectional,LSTM
 from sklearn.utils import class_weight
 from keras.optimizers import SGD
 from itertools import product
@@ -302,8 +310,8 @@ from functools import partial
 my_class_weights = class_weight.compute_class_weight('balanced',
                                                  np.unique(y_train),
                                                  y_train) 
-w_matrix=create_w_matrix(my_class_weights)          
-print(w_matrix)      
+#w_matrix=create_w_matrix(my_class_weights)          
+#print(w_matrix)      
                         
 #w_matrix=np.array([[1, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
@@ -311,20 +319,31 @@ print(w_matrix)
 #                   [1000, 1, 1, 1, 1],
 #                   [1000, 1, 1, 1, 1],
 #        ])       
-ncce = partial(w_categorical_crossentropy, weights=w_matrix)#верная строка, не транспонировать
+#ncce = partial(w_categorical_crossentropy, weights=w_matrix)#верная строка, не транспонировать
 auc_roc = as_keras_metric(tf.metrics.auc)
-sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
+#sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
 L2 = 1e-4
+DROPOUT = 0.2
+RDROPOUT = 0.2
 def create_baseline_dense():
     model = Sequential()
+    #model.add(Dropout(0.20))
     #model.add(LSTM(52,input_shape=(50,32), return_sequences=True))
-    model.add(Dense(50, activation='sigmoid',
-                kernel_regularizer=regularizers.l2(L2),
-                activity_regularizer=regularizers.l1(L2)))
+    model.add(Bidirectional(LSTM(
+            50, kernel_regularizer=regularizers.l2(L2),
+            recurrent_regularizer=regularizers.l2(L2),
+            bias_regularizer=regularizers.l2(L2),
+            activation='sigmoid', return_sequences=True)))
+    model.add(Bidirectional(LSTM(
+            50, kernel_regularizer=regularizers.l2(L2),
+            recurrent_regularizer=regularizers.l2(L2),
+            bias_regularizer=regularizers.l2(L2),
+            return_sequences=True)))
+    model.add(Bidirectional(LSTM(
+            50, kernel_regularizer=regularizers.l2(L2),
+            recurrent_regularizer=regularizers.l2(L2),
+            return_sequences=True)))
     model.add(Flatten())
-    model.add(Dense(50, activation='sigmoid',
-                kernel_regularizer=regularizers.l2(L2),
-                activity_regularizer=regularizers.l1(L2))) 
     model.add(Dense(5, activation='softmax',
                 kernel_regularizer=regularizers.l2(L2),
                 activity_regularizer=regularizers.l1(L2)))
@@ -333,7 +352,7 @@ def create_baseline_dense():
 
 dense_m=create_baseline_dense()
 print("Запуск модели")
-dense_m.fit(data_4_X, data_4_y_cat,validation_data=(data_4_X_t, data_4_y_t_cat), epochs=500, batch_size=64)
+dense_m.fit(data_4_X, data_4_y_cat,validation_data=(data_4_X_t, data_4_y_t_cat), epochs=100, batch_size=64)
 
 from sklearn.metrics import confusion_matrix
 y_v=dense_m.predict_classes(data_4_X_t)
